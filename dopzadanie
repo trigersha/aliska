@@ -1,0 +1,187 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <map>
+#include <iomanip>
+#include <sstream>
+#include <algorithm>
+#include <clocale>
+
+using namespace std;
+
+// Функция для очистки строки от лишних пробелов
+string cleanSpaces(const string& s) {
+    string result;
+    bool lastWasSpace = false;
+    for (char c : s) {
+        if (c == ' ') {
+            if (!lastWasSpace) {
+                result += c;
+                lastWasSpace = true;
+            }
+        }
+        else {
+            result += c;
+            lastWasSpace = false;
+        }
+    }
+    if (!result.empty() && result[0] == ' ') result.erase(0, 1);
+    if (!result.empty() && result.back() == ' ') result.pop_back();
+    return result;
+}
+
+// Функция для разбиения строки по запятым
+vector<string> splitByComma(const string& s) {
+    vector<string> result;
+    stringstream ss(s);
+    string item;
+    while (getline(ss, item, ',')) {
+        string cleaned;
+        for (char c : item) {
+            if (c != ' ') cleaned += c;
+        }
+        if (!cleaned.empty()) {
+            result.push_back(cleaned);
+        }
+    }
+    return result;
+}
+
+int main() {
+    setlocale(LC_ALL, "Russian");
+
+    //создала файл input.txt 
+    ofstream createFile("input.txt");
+    createFile << "4 Yuri Maria Evgenii Mark\n";
+    createFile << "Yuri 300.0\n";
+    createFile << "Yuri 100.0\n";
+    createFile << "Maria 500.0\n";
+    createFile << "Mark 100.0\n";
+    createFile << "Yuri 100.0\n";
+    createFile << "Evgenii 350.0\n";
+    createFile.close();
+
+    
+    ifstream inputFile("input.txt");
+
+    
+    ofstream outputFile("output.txt");
+
+    // Читаем первую строку
+    string firstLine;
+    getline(inputFile, firstLine);
+    firstLine = cleanSpaces(firstLine);
+
+    stringstream ss1(firstLine);
+    int n;
+    ss1 >> n;
+
+    vector<string> names(n);
+    for (int i = 0; i < n; i++) {
+        ss1 >> names[i];
+    }
+
+    map<string, double> spent;
+    map<string, double> shouldPay;
+
+    for (int i = 0; i < n; i++) {
+        spent[names[i]] = 0.0;
+        shouldPay[names[i]] = 0.0;
+    }
+
+    
+    string line;
+    while (getline(inputFile, line)) {
+        if (line.empty()) continue;
+        line = cleanSpaces(line);
+        if (line.empty()) continue;
+
+        string name;
+        double summa;
+        vector<string> exceptions;
+
+        size_t slashPos = line.find('/');
+
+        if (slashPos != string::npos) {
+            string firstPart = line.substr(0, slashPos);
+            string secondPart = line.substr(slashPos + 1);
+
+            firstPart = cleanSpaces(firstPart);
+            secondPart = cleanSpaces(secondPart);
+
+            stringstream ss2(firstPart);
+            ss2 >> name >> summa;
+
+            exceptions = splitByComma(secondPart);
+        }
+        else {
+            stringstream ss2(line);
+            ss2 >> name >> summa;
+        }
+
+        spent[name] += summa;
+
+        vector<string> payers;
+        for (int i = 0; i < n; i++) {
+            payers.push_back(names[i]);
+        }
+
+        for (const string& excl : exceptions) {
+            for (size_t j = 0; j < payers.size(); j++) {
+                if (payers[j] == excl) {
+                    payers.erase(payers.begin() + j);
+                    break;
+                }
+            }
+        }
+
+        if (payers.size() > 0) {
+            double share = summa / payers.size();
+            for (const string& payer : payers) {
+                shouldPay[payer] += share;
+            }
+        }
+    }
+
+    inputFile.close();
+
+    outputFile << fixed << setprecision(1);
+    for (int i = 0; i < n; i++) {
+        outputFile << names[i] << " " << spent[names[i]] << " " << shouldPay[names[i]] << endl;
+    }
+
+    map<string, double> debtors;
+    map<string, double> creditors;
+
+    for (int i = 0; i < n; i++) {
+        string name = names[i];
+        double balance = spent[name] - shouldPay[name];
+
+        if (balance > 0.01) {
+            creditors[name] = balance;
+        }
+        else if (balance < -0.01) {
+            debtors[name] = -balance;
+        }
+    }
+
+    outputFile << fixed << setprecision(1);
+
+    for (auto& debtor : debtors) {
+        for (auto& creditor : creditors) {
+            if (debtor.second < 0.01 || creditor.second < 0.01) continue;
+
+            double transaction = min(debtor.second, creditor.second);
+            if (transaction > 0.01) {
+                outputFile << debtor.first << " " << transaction << " " << creditor.first << endl;
+                debtor.second -= transaction;
+                creditor.second -= transaction;
+            }
+        }
+    }
+
+    outputFile.close();
+
+    return 0;
+}
